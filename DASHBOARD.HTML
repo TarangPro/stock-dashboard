@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Stock Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    table { border-collapse: collapse; width: 100%; background: #fff; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #eee; }
+    tr:hover { background-color: #f1f1f1; cursor: pointer; }
+    a { color: blue; text-decoration: none; }
+    button { padding: 8px 16px; margin-bottom: 10px; cursor: pointer; }
+  </style>
+</head>
+<body>
+<h2>Stock Dashboard</h2>
+<p>Click the chart link to open TradingView in a separate tab.</p>
+
+<button onclick="fetchSheetData()">Refresh Data</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Symbol</th>
+      <th>30d</th>
+      <th>21d</th>
+      <th>14d</th>
+      <th>Last Week</th>
+      <th>Today</th>
+      <th>52 Week High</th>
+      <th>52 Week Low</th>
+      <th>CAGE - WEEK</th>
+      <th>TradingView</th>
+    </tr>
+  </thead>
+  <tbody id="stockBody">
+    <!-- Data will load here -->
+  </tbody>
+</table>
+
+<script>
+  const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOLLO70_2aneOu11YOshOoBLB8ISCq9dKZhCM7zvvNyPHsHZQROw2jDwcKHKiGqYOgVhq26KTSaCQH/pub?gid=0&single=true&output=csv";
+
+  async function fetchSheetData() {
+    try {
+      // Add cache-busting parameter to force fresh fetch
+      const cacheBuster = Date.now();
+      const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(sheetUrl + "&cb=" + cacheBuster);
+
+      const response = await fetch(proxyUrl);
+      const csvText = await response.text();
+
+      const rows = csvText.trim().split("\n").slice(1); // skip header
+      const tbody = document.getElementById("stockBody");
+      tbody.innerHTML = "";
+
+      rows.forEach((row, index) => {
+        const cols = row.split(",");
+        if (!cols[1]) return; // skip empty rows
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${index + 1}</td>
+          <td>${cols[1]}</td>
+          <td>${cols[2]}</td>
+          <td>${cols[3]}</td>
+          <td>${cols[4]}</td>
+          <td>${cols[5]}</td>
+          <td>${cols[6]}</td>
+          <td>${cols[7]}</td>
+          <td>${cols[8]}</td>
+          <td>${cols[10]}</td>
+          <td><a href="https://in.tradingview.com/chart/?symbol=${cols[1]}" target="_blank">View Chart</a></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+    } catch (err) {
+      console.error("Error fetching Google Sheet:", err);
+      alert("Failed to load data from Google Sheet. Make sure it is published correctly.");
+    }
+  }
+
+  // Initial fetch
+  fetchSheetData();
+
+  // Auto-refresh every 60 seconds
+  setInterval(fetchSheetData, 60000);
+</script>
+</body>
+</html>
