@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Stock Dashboard</title>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
     table { border-collapse: collapse; width: 100%; background: #fff; margin-bottom: 20px; }
@@ -11,13 +12,16 @@
     tr:hover { background-color: #f1f1f1; cursor: pointer; }
     a { color: blue; text-decoration: none; }
     button { padding: 8px 16px; margin-bottom: 10px; cursor: pointer; }
+    .sparkline { width: 120px; height: 40px; }
+    #lastUpdated { font-size: 14px; color: #555; margin-bottom: 10px; }
   </style>
 </head>
 <body>
 <h2>Stock Dashboard</h2>
-<p>Click the chart link to open TradingView in a separate tab.</p>
+<p>Click the links to open <b>TradingView</b> or <b>Screener</b> in a new tab.</p>
 
 <button onclick="fetchSheetData()">Refresh Data</button>
+<p id="lastUpdated">Last Updated: --</p>
 
 <table>
   <thead>
@@ -31,8 +35,10 @@
       <th>Today</th>
       <th>52 Week High</th>
       <th>52 Week Low</th>
-      <th>CAGE - WEEK</th>
+      <th>CAGR - WEEK</th>
+      <th>Sparkline</th>
       <th>TradingView</th>
+      <th>Screener</th>
     </tr>
   </thead>
   <tbody id="stockBody">
@@ -43,23 +49,33 @@
 <script>
   const sheetUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTOLLO70_2aneOu11YOshOoBLB8ISCq9dKZhCM7zvvNyPHsHZQROw2jDwcKHKiGqYOgVhq26KTSaCQH/pub?gid=0&single=true&output=csv";
 
+  google.charts.load('current', { packages: ['corechart'] });
+
   async function fetchSheetData() {
     try {
-      // Add cache-busting parameter to force fresh fetch
       const cacheBuster = Date.now();
       const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(sheetUrl + "&cb=" + cacheBuster);
-
       const response = await fetch(proxyUrl);
       const csvText = await response.text();
 
-      const rows = csvText.trim().split("\n").slice(1); // skip header
+      const rows = csvText.trim().split("\n");
+      const dataRows = rows.slice(1); // skip header
+
       const tbody = document.getElementById("stockBody");
       tbody.innerHTML = "";
 
-      rows.forEach((row, index) => {
+      dataRows.forEach((row, index) => {
         const cols = row.split(",");
         if (!cols[1]) return; // skip empty rows
+
         const tr = document.createElement("tr");
+        const sparkId = "spark_" + index;
+
+        // Clean the symbol for Screener
+        let screenerSymbol = cols[1].trim();
+        screenerSymbol = screenerSymbol.replace(/^NSE:|^BSE:/, ""); 
+        screenerSymbol = screenerSymbol.replace(/\.NS$|\.BO$/i, ""); 
+
         tr.innerHTML = `
           <td>${index + 1}</td>
           <td>${cols[1]}</td>
@@ -71,10 +87,41 @@
           <td>${cols[7]}</td>
           <td>${cols[8]}</td>
           <td>${cols[10]}</td>
+          <td><div id="${sparkId}" class="sparkline"></div></td>
           <td><a href="https://in.tradingview.com/chart/?symbol=${cols[1]}" target="_blank">View Chart</a></td>
+          <td><a href="https://www.screener.in/company/${screenerSymbol}" target="_blank">Screener</a></td>
         `;
+
         tbody.appendChild(tr);
+
+        // Sparkline ONLY for 30d, 21d, 14d, Last Week, Today
+        const sparkData = [
+          ['Day', 'Price'],
+          ['30d', parseFloat(cols[2]) || 0],
+          ['21d', parseFloat(cols[3]) || 0],
+          ['14d', parseFloat(cols[4]) || 0],
+          ['LastW', parseFloat(cols[5]) || 0],
+          ['Today', parseFloat(cols[6]) || 0]
+        ];
+
+        google.charts.setOnLoadCallback(() => {
+          const chart = new google.visualization.LineChart(document.getElementById(sparkId));
+          chart.draw(google.visualization.arrayToDataTable(sparkData), {
+            legend: 'none',
+            hAxis: { textPosition: 'none' },
+            vAxis: { textPosition: 'none' },
+            chartArea: { width: '100%', height: '100%' },
+            lineWidth: 2,
+            pointSize: 3,
+            colors: ['#007bff']
+          });
+        });
       });
+
+      // Update last updated time
+      const now = new Date();
+      document.getElementById("lastUpdated").textContent =
+        "Last Updated: " + now.toLocaleString();
 
     } catch (err) {
       console.error("Error fetching Google Sheet:", err);
